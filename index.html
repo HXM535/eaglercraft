@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eaglercraft Launcher</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'media',
+  theme: {
+    extend: {
+      fontFamily: {
+        sans: ['system-ui','-apple-system','BlinkMacSystemFont','"Segoe UI"', 'Roboto','"Helvetica Neue"', 'Arial','"Noto Sans SC"', 'sans-serif'],
+        mono: ['"SF Mono"', 'SFMono-Regular', '"Roboto Mono"', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
+      },
+      colors: {
+        ink: '#0a0a0f',
+        paper: '#fafaf9',
+      }
+    }
+  }
+}
+</script>
+<!-- 可靠的 gzip 解压库，jsDelivr 全球加速 -->
+<script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+<style>
+  ::selection { background: #171717; color: #fafaf9; }
+  .dark ::selection { background: #e5e5e5; color: #0a0a0f; }
+
+  .grain::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    z-index: 50;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-up { animation: fadeUp 0.6s ease-out forwards; opacity: 0; }
+  .delay-100 { animation-delay: 0.1s; }
+  .delay-200 { animation-delay: 0.2s; }
+</style>
+</head>
+<body class="bg-paper text-neutral-900 dark:bg-ink dark:text-neutral-100 font-sans antialiased grain min-h-screen flex items-center justify-center px-6">
+
+  <main class="w-full max-w-md animate-fade-up">
+
+    <header class="mb-12">
+      <div class="flex items-center gap-3 mb-6">
+        <span class="font-mono text-sm text-neutral-400 dark:text-neutral-600">~/hxm535</span>
+        <span class="text-neutral-300 dark:text-neutral-700">|</span>
+        <span class="font-mono text-sm text-neutral-400 dark:text-neutral-600">eaglercraft</span>
+      </div>
+      <h1 class="text-3xl md:text-4xl font-bold tracking-tight mb-3">Eaglercraft</h1>
+      <p class="text-neutral-600 dark:text-neutral-400 text-base">在线启动器</p>
+    </header>
+
+    <div class="space-y-8">
+
+      <section class="animate-fade-up delay-100">
+        <div class="flex items-center gap-3 mb-4">
+          <h2 class="text-xs font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-600">Version</h2>
+          <div class="flex-1 h-px bg-neutral-200 dark:bg-neutral-800"></div>
+        </div>
+        <div class="flex gap-3">
+          <button onclick="pickVer(this,'1.12.2')"
+            class="ver-btn flex-1 p-4 rounded-xl border text-left transition-all cursor-pointer border-neutral-900 dark:border-white ring-1 ring-neutral-900 dark:ring-white">
+            <div class="font-semibold text-base">1.12.2</div>
+          </button>
+          <button onclick="pickVer(this,'1.8.8')"
+            class="ver-btn flex-1 p-4 rounded-xl border text-left transition-all cursor-pointer border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600">
+            <div class="font-semibold text-base">1.8.8</div>
+          </button>
+        </div>
+      </section>
+
+      <section class="animate-fade-up delay-100">
+        <div class="flex items-center gap-3 mb-4">
+          <h2 class="text-xs font-mono uppercase tracking-widest text-neutral-400 dark:text-neutral-600">Target</h2>
+          <div class="flex-1 h-px bg-neutral-200 dark:bg-neutral-800"></div>
+        </div>
+        <div class="flex gap-3">
+          <button onclick="pickMode(this,'window')"
+            class="mode-btn flex-1 py-3 px-4 rounded-lg border text-sm font-medium transition-all cursor-pointer bg-neutral-100 dark:bg-neutral-800 border-neutral-400 dark:border-neutral-500">
+            新窗口
+          </button>
+          <button onclick="pickMode(this,'page')"
+            class="mode-btn flex-1 py-3 px-4 rounded-lg border text-sm font-medium transition-all cursor-pointer border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600">
+            新页面
+          </button>
+        </div>
+      </section>
+
+      <section id="progressArea" class="hidden animate-fade-up">
+        <div class="flex items-center justify-between mb-2">
+          <span id="statusText" class="text-xs font-mono text-neutral-500 dark:text-neutral-500">准备中...</span>
+          <span id="percentText" class="text-xs font-mono text-neutral-500 dark:text-neutral-500"></span>
+        </div>
+        <div class="w-full h-1.5 bg-neutral-200 dark:bg-neutral-800 rounded-full overflow-hidden">
+          <div id="progressBar" class="h-full bg-neutral-900 dark:bg-white rounded-full transition-all duration-200" style="width: 0%"></div>
+        </div>
+      </section>
+
+      <section class="animate-fade-up delay-200 pt-2">
+        <button id="launchBtn" onclick="launch()"
+          class="w-full py-4 rounded-xl bg-neutral-900 dark:bg-white text-paper dark:text-ink font-semibold text-base transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed">
+          启动
+        </button>
+      </section>
+
+    </div>
+
+    <footer class="mt-16 pt-6 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-xs font-mono text-neutral-400 dark:text-neutral-600 animate-fade-up delay-200">
+      <span id="footerStatus" class="flex items-center gap-2">
+        <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+        就绪
+      </span>
+      <span>与 Mojang 无关</span>
+    </footer>
+
+  </main>
+
+  <script>
+    let ver = '1.12.2';
+    let mode = 'window';
+
+    const launchBtn = document.getElementById('launchBtn');
+    const progressArea = document.getElementById('progressArea');
+    const progressBar = document.getElementById('progressBar');
+    const statusText = document.getElementById('statusText');
+    const percentText = document.getElementById('percentText');
+    const footerStatus = document.getElementById('footerStatus');
+
+    function pickVer(el, val) {
+      ver = val;
+      document.querySelectorAll('.ver-btn').forEach(b => {
+        b.className = 'ver-btn flex-1 p-4 rounded-xl border text-left transition-all cursor-pointer border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600';
+      });
+      el.className = 'ver-btn flex-1 p-4 rounded-xl border text-left transition-all cursor-pointer border-neutral-900 dark:border-white ring-1 ring-neutral-900 dark:ring-white';
+    }
+
+    function pickMode(el, val) {
+      mode = val;
+      document.querySelectorAll('.mode-btn').forEach(b => {
+        b.className = 'mode-btn flex-1 py-3 px-4 rounded-lg border text-sm font-medium transition-all cursor-pointer border-neutral-200 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-600';
+      });
+      el.className = 'mode-btn flex-1 py-3 px-4 rounded-lg border text-sm font-medium transition-all cursor-pointer bg-neutral-100 dark:bg-neutral-800 border-neutral-400 dark:border-neutral-500';
+    }
+
+    function setProgress(pct, status) {
+      progressBar.style.width = pct + '%';
+      statusText.textContent = status;
+      percentText.textContent = (pct > 0 && pct < 100) ? Math.round(pct) + '%' : '';
+    }
+
+    function setBusy(busy) {
+      launchBtn.disabled = busy;
+      footerStatus.innerHTML = busy
+        ? '<span class="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse"></span>处理中'
+        : '<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>就绪';
+    }
+
+    function fmtSize(bytes) {
+      if (bytes > 1e6) return (bytes / 1e6).toFixed(1) + ' MB';
+      if (bytes > 1e3) return (bytes / 1e3).toFixed(1) + ' KB';
+      return bytes + ' B';
+    }
+
+    async function launch() {
+      // 检查 pako 是否加载成功
+      if (typeof pako === 'undefined' || !pako.ungzip) {
+        alert('解压库加载失败，请检查网络连接后刷新页面重试。\n如果持续失败，可能是 jsDelivr 被屏蔽，请尝试切换网络或使用代理。');
+        return;
+      }
+
+      const gzUrl = ver + '/index.html.gz';
+      
+      setBusy(true);
+      progressArea.classList.remove('hidden');
+      setProgress(0, '连接中...');
+
+      try {
+        const response = await fetch(gzUrl);
+        if (!response.ok) {
+          throw new Error('找不到文件 ' + gzUrl + '（HTTP ' + response.status + '）');
+        }
+
+        const total = +(response.headers.get('Content-Length') || 0);
+        const reader = response.body.getReader();
+        const chunks = [];
+        let received = 0;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.length;
+          if (total) {
+            const pct = (received / total) * 45; // 下载占 0-45%
+            setProgress(pct, '下载中 ' + fmtSize(received) + ' / ' + fmtSize(total));
+          } else {
+            setProgress(0, '下载中 ' + fmtSize(received));
+          }
+        }
+
+        // 合并
+        setProgress(50, '合并数据...');
+        const all = new Uint8Array(received);
+        let pos = 0;
+        for (const chunk of chunks) {
+          all.set(chunk, pos);
+          pos += chunk.length;
+        }
+
+        // 解压（gzip → raw）
+        setProgress(55, '解压中...');
+        // 使用 setTimeout 让 UI 有机会刷新进度条
+        await new Promise(r => setTimeout(r, 50));
+
+        let decompressed;
+        try {
+          decompressed = pako.ungzip(all);
+        } catch (e) {
+          throw new Error('解压失败：文件可能不是有效的 gzip 格式。请确认压缩命令是 gzip -9 index.html');
+        }
+
+        setProgress(90, '准备启动...');
+
+        const blob = new Blob([decompressed], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+
+        setProgress(100, '完成');
+
+        setTimeout(() => {
+          if (mode === 'window') {
+            window.open(url, '_blank', 'width=1280,height=720,menubar=no,toolbar=no,location=no');
+          } else {
+            window.open(url, '_blank');
+          }
+          
+          setBusy(false);
+          progressArea.classList.add('hidden');
+          setProgress(0, '准备中...');
+          
+          // 30 秒后释放 Blob URL
+          setTimeout(() => URL.revokeObjectURL(url), 30000);
+        }, 200);
+
+      } catch (e) {
+        console.error(e);
+        alert('错误: ' + e.message);
+        setBusy(false);
+        progressArea.classList.add('hidden');
+      }
+    }
+
+    document.addEventListener('keydown', e => { 
+      if (e.key === 'Enter' && !launchBtn.disabled) launch(); 
+    });
+  </script>
+
+</body>
+</html>
